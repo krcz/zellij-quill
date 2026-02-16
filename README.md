@@ -1,5 +1,7 @@
 # zellij-quill
 
+[![Build WASM](https://github.com/krcz/zellij-quill/actions/workflows/build-wasm.yml/badge.svg)](https://github.com/krcz/zellij-quill/actions/workflows/build-wasm.yml)
+
 `zellij-quill` is a vibe-coded Zellij plugin that exposes pane automation primitives over `zellij pipe`.
 It is designed for scripting and agent workflows: send input to panes, read/grep/wait on scrollback, run commands, and manage token-based access.
 
