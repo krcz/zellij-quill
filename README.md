@@ -46,6 +46,24 @@ cargo test
 cargo check --target wasm32-wasip1
 ```
 
+## Enable In Zellij Config
+
+Add the plugin to your Zellij config (usually `~/.config/zellij/config.kdl`) so it is loaded in the background when a session starts:
+
+```kdl
+load_plugins {
+  "https://github.com/krcz/zellij-quill/releases/download/v0.0.1/zellij_quill.wasm" {
+    require_token false
+    enable_pane_permissions true
+    // token "your-static-token" // optional
+  }
+}
+```
+
+You can use `file:/home/user/zellij-quill/target/wasm32-wasip1/release/zellij_quill.wasm` if you prefer local build.
+
+Then restart Zellij (or start a new session) so the config is reloaded.
+
 ## Usage
 
 Load the compiled plugin in Zellij using your normal plugin workflow, then send commands via pipe.
