@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zellij Quill Pane Control"
+  short_description: "Run and supervise interactive pane commands via quill"
+  default_prompt: "Use zellij-quill to run, monitor, and control long-running interactive commands in named Zellij panes."
