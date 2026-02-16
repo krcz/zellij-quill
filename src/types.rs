@@ -22,6 +22,7 @@ pub(crate) struct QuillPlugin {
     pub(crate) exec_jobs_by_request_id: std::collections::HashMap<String, String>,
     pub(crate) marks: std::collections::HashMap<String, ScrollbackMark>,
     pub(crate) next_job_id: u64,
+    pub(crate) next_request_id: u64,
     pub(crate) next_mark_id: u64,
     pub(crate) require_token: bool,
     pub(crate) enforce_pane_permissions: bool,
@@ -62,7 +63,7 @@ pub(crate) struct WaitJob {
     pub(crate) since_line_count: Option<usize>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, clap::ValueEnum)]
 pub(crate) enum WaitMode {
     Any,
     All,
@@ -160,20 +161,35 @@ impl TabSelector {
     }
 }
 
-#[derive(Debug)]
+impl std::str::FromStr for TabSelector {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "focused" => Ok(TabSelector::Focused),
+            "all" => Ok(TabSelector::All),
+            other => other
+                .parse::<usize>()
+                .map(TabSelector::Index)
+                .map_err(|_| format!("Invalid --tab value: {other}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, clap::ValueEnum)]
 pub(crate) enum TailFrom {
     End,
     Viewport,
     Top,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, clap::ValueEnum)]
 pub(crate) enum SpawnKind {
     Terminal,
     Command,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, clap::ValueEnum)]
+#[clap(rename_all = "kebab-case")]
 pub(crate) enum SpawnWhere {
     Tiled,
     Floating,

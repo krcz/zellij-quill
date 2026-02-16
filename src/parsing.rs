@@ -1,5 +1,5 @@
 use crate::error::{ApiError, ApiResult};
-use crate::types::{PipeCommand, SpawnKind, SpawnWhere, TabSelector, TailFrom, WaitMode};
+use crate::types::PipeCommand;
 use regex::{Regex, RegexBuilder};
 use serde_json::Value;
 use std::time::Duration;
@@ -218,13 +218,6 @@ pub(crate) fn parse_f64(value: &str, field: &str) -> ApiResult<f64> {
     })
 }
 
-pub(crate) fn parse_usize_arg(value: Option<&String>, flag: &str) -> ApiResult<usize> {
-    parse_usize_literal(
-        value.ok_or_else(|| ApiError::new("INVALID_ARGS", format!("Missing value for {flag}")))?,
-        flag,
-    )
-}
-
 pub(crate) fn parse_usize_literal(value: &str, flag: &str) -> ApiResult<usize> {
     value.trim().parse::<usize>().map_err(|_| {
         ApiError::new(
@@ -234,14 +227,6 @@ pub(crate) fn parse_usize_literal(value: &str, flag: &str) -> ApiResult<usize> {
     })
 }
 
-pub(crate) fn parse_tab_selector(value: &str) -> ApiResult<TabSelector> {
-    match value {
-        "focused" => Ok(TabSelector::Focused),
-        "all" => Ok(TabSelector::All),
-        other => Ok(TabSelector::Index(parse_usize_literal(other, "--tab")?)),
-    }
-}
-
 pub(crate) fn parse_columns(value: &str) -> Vec<String> {
     value
         .split(',')
@@ -249,64 +234,6 @@ pub(crate) fn parse_columns(value: &str) -> Vec<String> {
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .collect()
-}
-
-pub(crate) fn parse_tail_from(value: &str) -> ApiResult<TailFrom> {
-    match value {
-        "end" => Ok(TailFrom::End),
-        "viewport" => Ok(TailFrom::Viewport),
-        "top" => Ok(TailFrom::Top),
-        _ => Err(ApiError::new(
-            "INVALID_ARGS",
-            format!("Invalid --from value: {value}"),
-        )),
-    }
-}
-
-pub(crate) fn parse_wait_mode(value: &str) -> ApiResult<WaitMode> {
-    match value {
-        "any" => Ok(WaitMode::Any),
-        "all" => Ok(WaitMode::All),
-        _ => Err(ApiError::new(
-            "INVALID_ARGS",
-            format!("Invalid --mode value: {value}"),
-        )),
-    }
-}
-
-pub(crate) fn parse_spawn_kind(value: &str) -> ApiResult<SpawnKind> {
-    match value {
-        "terminal" => Ok(SpawnKind::Terminal),
-        "command" => Ok(SpawnKind::Command),
-        _ => Err(ApiError::new(
-            "INVALID_ARGS",
-            format!("Invalid --kind value: {value}"),
-        )),
-    }
-}
-
-pub(crate) fn parse_spawn_where(value: &str) -> ApiResult<SpawnWhere> {
-    match value {
-        "tiled" => Ok(SpawnWhere::Tiled),
-        "floating" => Ok(SpawnWhere::Floating),
-        "near-plugin" => Ok(SpawnWhere::NearPlugin),
-        "in-place" => Ok(SpawnWhere::InPlace),
-        "background" => Ok(SpawnWhere::Background),
-        _ => Err(ApiError::new(
-            "INVALID_ARGS",
-            format!("Invalid --where value: {value}"),
-        )),
-    }
-}
-
-pub(crate) fn parse_env_pair(value: &str) -> ApiResult<(String, String)> {
-    let Some((key, val)) = value.split_once('=') else {
-        return Err(ApiError::new(
-            "INVALID_ARGS",
-            format!("Invalid env pair, expected KEY=VAL: {value}"),
-        ));
-    };
-    Ok((key.to_string(), val.to_string()))
 }
 
 pub(crate) fn compile_search_regex(
@@ -435,11 +362,6 @@ pub(crate) fn parse_hex_bytes(value: &str) -> ApiResult<Vec<u8>> {
         i += 2;
     }
     Ok(bytes)
-}
-
-pub(crate) fn opt_value(arg: &str, option: &str) -> Option<String> {
-    arg.strip_prefix(&(option.to_string() + "="))
-        .map(|value| value.to_string())
 }
 
 #[cfg(test)]

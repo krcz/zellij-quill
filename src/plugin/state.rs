@@ -151,8 +151,8 @@ impl QuillPlugin {
     }
 
     pub(super) fn next_request_id(&mut self) -> String {
-        self.next_job_id += 1;
-        format!("req-{}-{}", unix_time_ms(), self.next_job_id)
+        self.next_request_id += 1;
+        format!("req-{}-{}", unix_time_ms(), self.next_request_id)
     }
 
     pub(super) fn next_mark_token(&mut self) -> String {

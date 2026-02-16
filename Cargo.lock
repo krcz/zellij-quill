@@ -3480,6 +3480,7 @@ dependencies = [
 name = "zellij-quill"
 version = "0.0.1"
 dependencies = [
+ "clap",
  "regex",
  "serde",
  "serde_json",

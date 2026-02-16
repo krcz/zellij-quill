@@ -8,8 +8,6 @@ use zellij_tile::prelude::*;
 
 impl QuillPlugin {
     pub(super) fn on_pane_update(&mut self, pane_manifest: PaneManifest) {
-        self.pane_manifest = Some(pane_manifest.clone());
-
         for panes in pane_manifest.panes.values() {
             for pane in panes {
                 if !pane.is_plugin {
@@ -18,6 +16,7 @@ impl QuillPlugin {
             }
         }
 
+        self.pane_manifest = Some(pane_manifest);
         self.refresh_focus_from_host();
         self.resolve_spawn_jobs();
     }

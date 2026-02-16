@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use zellij_tile::prelude::*;
 
+mod args;
 mod marks;
 mod pane_io;
 mod pane_listing;

@@ -1,82 +1,94 @@
 use super::*;
+use args::parse_args;
+use clap::Parser;
+
+#[derive(Parser)]
+#[clap(no_binary_name = true)]
+struct TailArgs {
+    #[clap(long)]
+    json: bool,
+    #[clap(long)]
+    pane: Option<String>,
+    #[clap(short = 'n', long = "lines", default_value = "200")]
+    lines: usize,
+    #[clap(long, arg_enum, default_value = "end")]
+    from: TailFrom,
+    #[clap(long = "no-strip-ansi")]
+    no_strip_ansi: bool,
+    #[clap(long = "strip-ansi", hide = true)]
+    strip_ansi: bool,
+    #[clap(long)]
+    since: Option<String>,
+    #[clap(long)]
+    token: Option<String>,
+}
+
+#[derive(Parser)]
+#[clap(no_binary_name = true)]
+struct GrepArgs {
+    #[clap(long)]
+    json: bool,
+    #[clap(long)]
+    pane: Option<String>,
+    #[clap(short = 'n')]
+    line_numbers: bool,
+    #[clap(short = 'C', long)]
+    context: Option<usize>,
+    #[clap(short = 'i', long = "ignore-case")]
+    ignore_case: bool,
+    #[clap(short = 'F', long = "fixed-strings")]
+    fixed_strings: bool,
+    #[clap(long, default_value = "2000")]
+    last: usize,
+    #[clap(long)]
+    since: Option<String>,
+    #[clap(long)]
+    token: Option<String>,
+    pattern: Option<String>,
+}
+
+#[derive(Parser)]
+#[clap(no_binary_name = true)]
+struct WaitArgs {
+    #[clap(long)]
+    json: bool,
+    #[clap(long)]
+    pane: Option<String>,
+    #[clap(long)]
+    regex: Option<String>,
+    #[clap(long, default_value = "1")]
+    last: usize,
+    #[clap(long, default_value = "30")]
+    timeout: String,
+    #[clap(long, default_value = "0.2")]
+    interval: String,
+    #[clap(long, default_value = "400")]
+    window: usize,
+    #[clap(long, arg_enum, default_value = "any")]
+    mode: WaitMode,
+    #[clap(long)]
+    since: Option<String>,
+    #[clap(long)]
+    token: Option<String>,
+    /// Positional regex (alternative to --regex)
+    regex_positional: Option<String>,
+}
 
 impl QuillPlugin {
     pub(in crate::plugin) fn cmd_tail(
         &mut self,
-        args: &[String],
+        raw_args: &[String],
     ) -> Result<CommandOutcome, ApiError> {
-        let mut json_only = false;
-        let mut pane_id: Option<String> = None;
-        let mut lines = 200usize;
-        let mut from = TailFrom::End;
-        let mut strip_ansi = true;
-        let mut since: Option<String> = None;
-        let mut token: Option<String> = None;
+        let args = parse_args::<TailArgs>(raw_args)?;
+        let strip_ansi = !args.no_strip_ansi;
 
-        let mut i = 0;
-        while i < args.len() {
-            let arg = &args[i];
-            if arg == "--json" {
-                json_only = true;
-            } else if arg == "--pane" {
-                i += 1;
-                pane_id = Some(
-                    args.get(i)
-                        .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --pane"))?
-                        .to_string(),
-                );
-            } else if let Some(value) = opt_value(arg, "--pane") {
-                pane_id = Some(value);
-            } else if arg == "-n" || arg == "--lines" {
-                i += 1;
-                lines = parse_usize_arg(args.get(i), "--lines")?;
-            } else if let Some(value) = opt_value(arg, "--lines") {
-                lines = parse_usize_literal(&value, "--lines")?;
-            } else if arg == "--from" {
-                i += 1;
-                let value = args
-                    .get(i)
-                    .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --from"))?;
-                from = parse_tail_from(value)?;
-            } else if let Some(value) = opt_value(arg, "--from") {
-                from = parse_tail_from(&value)?;
-            } else if arg == "--strip-ansi" {
-                strip_ansi = true;
-            } else if arg == "--no-strip-ansi" {
-                strip_ansi = false;
-            } else if arg == "--since" {
-                i += 1;
-                since = Some(
-                    args.get(i)
-                        .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --since"))?
-                        .to_string(),
-                );
-            } else if let Some(value) = opt_value(arg, "--since") {
-                since = Some(value);
-            } else if arg == "--token" {
-                i += 1;
-                token = Some(
-                    args.get(i)
-                        .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --token"))?
-                        .to_string(),
-                );
-            } else if let Some(value) = opt_value(arg, "--token") {
-                token = Some(value);
-            } else {
-                return Err(ApiError::new(
-                    "INVALID_ARGS",
-                    format!("Unknown flag for tail/read: {arg}"),
-                ));
-            }
-            i += 1;
-        }
-
-        let pane_id =
-            pane_id.ok_or_else(|| ApiError::new("INVALID_ARGS", "tail requires --pane <name>"))?;
+        let pane_id = args
+            .pane
+            .ok_or_else(|| ApiError::new("INVALID_ARGS", "tail requires --pane <name>"))?;
         let pane_id = self.resolve_pane_name(&pane_id)?;
-        self.ensure_token_can_access_pane(token.as_deref(), pane_id, "tail")?;
+        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id, "tail")?;
         let pane_lines = self.read_pane_lines(pane_id, strip_ansi)?;
-        let since_line_count = if let Some(token) = since {
+        let since_line_count = if let Some(token) = args.since {
             Some(self.resolve_since_line_count(&token, pane_id)?)
         } else {
             None
@@ -95,7 +107,8 @@ impl QuillPlugin {
             }
         }
 
-        let selected = match from {
+        let lines = args.lines;
+        let selected = match args.from {
             TailFrom::End => {
                 if source_lines.len() <= lines {
                     source_lines
@@ -123,14 +136,14 @@ impl QuillPlugin {
             }
         };
 
-        let human = if json_only {
+        let human = if args.json {
             None
         } else {
             Some(selected.join("\n"))
         };
 
         Ok(CommandOutcome::Immediate {
-            json_only,
+            json_only: args.json,
             human,
             payload: json!({
                 "ok": true,
@@ -144,93 +157,23 @@ impl QuillPlugin {
 
     pub(in crate::plugin) fn cmd_grep(
         &mut self,
-        args: &[String],
+        raw_args: &[String],
     ) -> Result<CommandOutcome, ApiError> {
-        let mut json_only = false;
-        let mut pane_id: Option<String> = None;
-        let mut include_numbers = false;
-        let mut context = 0usize;
-        let mut ignore_case = false;
-        let mut fixed_strings = false;
-        let mut last = 2000usize;
-        let mut pattern: Option<String> = None;
-        let mut since: Option<String> = None;
-        let mut token: Option<String> = None;
+        let args = parse_args::<GrepArgs>(raw_args)?;
+        let context = args.context.unwrap_or(0);
 
-        let mut i = 0;
-        while i < args.len() {
-            let arg = &args[i];
-            if arg == "--json" {
-                json_only = true;
-            } else if arg == "--pane" {
-                i += 1;
-                pane_id = Some(
-                    args.get(i)
-                        .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --pane"))?
-                        .to_string(),
-                );
-            } else if let Some(value) = opt_value(arg, "--pane") {
-                pane_id = Some(value);
-            } else if arg == "-n" {
-                include_numbers = true;
-            } else if arg == "-C" || arg == "--context" {
-                i += 1;
-                context = parse_usize_arg(args.get(i), "--context")?;
-            } else if let Some(value) = opt_value(arg, "--context") {
-                context = parse_usize_literal(&value, "--context")?;
-            } else if arg == "-i" || arg == "--ignore-case" {
-                ignore_case = true;
-            } else if arg == "-F" || arg == "--fixed-strings" {
-                fixed_strings = true;
-            } else if arg == "--last" {
-                i += 1;
-                last = parse_usize_arg(args.get(i), "--last")?;
-            } else if let Some(value) = opt_value(arg, "--last") {
-                last = parse_usize_literal(&value, "--last")?;
-            } else if arg == "--since" {
-                i += 1;
-                since = Some(
-                    args.get(i)
-                        .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --since"))?
-                        .to_string(),
-                );
-            } else if let Some(value) = opt_value(arg, "--since") {
-                since = Some(value);
-            } else if arg == "--token" {
-                i += 1;
-                token = Some(
-                    args.get(i)
-                        .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --token"))?
-                        .to_string(),
-                );
-            } else if let Some(value) = opt_value(arg, "--token") {
-                token = Some(value);
-            } else if arg.starts_with('-') {
-                return Err(ApiError::new(
-                    "INVALID_ARGS",
-                    format!("Unknown flag for grep: {arg}"),
-                ));
-            } else if pattern.is_none() {
-                pattern = Some(arg.clone());
-            } else {
-                return Err(ApiError::new(
-                    "INVALID_ARGS",
-                    "grep takes a single pattern argument",
-                ));
-            }
-            i += 1;
-        }
-
-        let pattern = pattern
+        let pattern = args
+            .pattern
             .ok_or_else(|| ApiError::new("INVALID_ARGS", "grep requires a <pattern> argument"))?;
-        let regex = compile_search_regex(&pattern, ignore_case, fixed_strings)?;
-        let pane_id =
-            pane_id.ok_or_else(|| ApiError::new("INVALID_ARGS", "grep requires --pane <name>"))?;
+        let regex = compile_search_regex(&pattern, args.ignore_case, args.fixed_strings)?;
+        let pane_id = args
+            .pane
+            .ok_or_else(|| ApiError::new("INVALID_ARGS", "grep requires --pane <name>"))?;
         let pane_id = self.resolve_pane_name(&pane_id)?;
-        self.ensure_token_can_access_pane(token.as_deref(), pane_id, "grep")?;
+        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id, "grep")?;
 
         let pane_lines = self.read_pane_lines(pane_id, true)?;
-        let since_line_count = if let Some(token) = since {
+        let since_line_count = if let Some(token) = args.since {
             Some(self.resolve_since_line_count(&token, pane_id)?)
         } else {
             None
@@ -246,21 +189,21 @@ impl QuillPlugin {
             pane_lines.all.clone()
         };
 
-        let (candidate_lines, offset) = if all_lines.len() <= last {
+        let (candidate_lines, offset) = if all_lines.len() <= args.last {
             (all_lines, 0usize)
         } else {
-            let start = all_lines.len() - last;
+            let start = all_lines.len() - args.last;
             (all_lines[start..].to_vec(), start)
         };
 
         let matches = build_grep_matches(&candidate_lines, &regex, context, offset);
 
-        let human = if json_only {
+        let human = if args.json {
             None
         } else {
             let mut lines = Vec::new();
             for m in &matches {
-                if include_numbers {
+                if args.line_numbers {
                     lines.push(format!("{}:{}", m.line_number, m.line));
                 } else {
                     lines.push(m.line.clone());
@@ -270,7 +213,7 @@ impl QuillPlugin {
         };
 
         Ok(CommandOutcome::Immediate {
-            json_only,
+            json_only: args.json,
             human,
             payload: json!({
                 "ok": true,
@@ -284,129 +227,42 @@ impl QuillPlugin {
 
     pub(in crate::plugin) fn cmd_wait(
         &mut self,
-        args: &[String],
+        raw_args: &[String],
         pipe_id: Option<&str>,
     ) -> Result<CommandOutcome, ApiError> {
-        let mut json_only = false;
-        let mut pane_id: Option<String> = None;
-        let mut regex_pattern: Option<String> = None;
-        let mut last_n = 1usize;
-        let mut timeout = Duration::from_secs(30);
-        let mut interval = Duration::from_millis(200);
-        let mut window = 400usize;
-        let mut mode = WaitMode::Any;
-        let mut since: Option<String> = None;
-        let mut token: Option<String> = None;
+        let args = parse_args::<WaitArgs>(raw_args)?;
 
-        let mut i = 0;
-        while i < args.len() {
-            let arg = &args[i];
-            if arg == "--json" {
-                json_only = true;
-            } else if arg == "--pane" {
-                i += 1;
-                pane_id = Some(
-                    args.get(i)
-                        .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --pane"))?
-                        .to_string(),
-                );
-            } else if let Some(value) = opt_value(arg, "--pane") {
-                pane_id = Some(value);
-            } else if arg == "--regex" {
-                i += 1;
-                regex_pattern = Some(
-                    args.get(i)
-                        .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --regex"))?
-                        .to_string(),
-                );
-            } else if let Some(value) = opt_value(arg, "--regex") {
-                regex_pattern = Some(value);
-            } else if arg == "--last" {
-                i += 1;
-                last_n = parse_usize_arg(args.get(i), "--last")?;
-            } else if let Some(value) = opt_value(arg, "--last") {
-                last_n = parse_usize_literal(&value, "--last")?;
-            } else if arg == "--timeout" {
-                i += 1;
-                timeout = parse_duration(args.get(i).ok_or_else(|| {
-                    ApiError::new("INVALID_ARGS", "Missing value for --timeout")
-                })?)?;
-            } else if let Some(value) = opt_value(arg, "--timeout") {
-                timeout = parse_duration(&value)?;
-            } else if arg == "--interval" {
-                i += 1;
-                interval = parse_duration(args.get(i).ok_or_else(|| {
-                    ApiError::new("INVALID_ARGS", "Missing value for --interval")
-                })?)?;
-            } else if let Some(value) = opt_value(arg, "--interval") {
-                interval = parse_duration(&value)?;
-            } else if arg == "--window" {
-                i += 1;
-                window = parse_usize_arg(args.get(i), "--window")?;
-            } else if let Some(value) = opt_value(arg, "--window") {
-                window = parse_usize_literal(&value, "--window")?;
-            } else if arg == "--mode" {
-                i += 1;
-                let mode_string = args
-                    .get(i)
-                    .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --mode"))?;
-                mode = parse_wait_mode(mode_string)?;
-            } else if let Some(value) = opt_value(arg, "--mode") {
-                mode = parse_wait_mode(&value)?;
-            } else if arg == "--since" {
-                i += 1;
-                since = Some(
-                    args.get(i)
-                        .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --since"))?
-                        .to_string(),
-                );
-            } else if let Some(value) = opt_value(arg, "--since") {
-                since = Some(value);
-            } else if arg == "--token" {
-                i += 1;
-                token = Some(
-                    args.get(i)
-                        .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --token"))?
-                        .to_string(),
-                );
-            } else if let Some(value) = opt_value(arg, "--token") {
-                token = Some(value);
-            } else if arg.starts_with('-') {
-                return Err(ApiError::new(
-                    "INVALID_ARGS",
-                    format!("Unknown flag for wait: {arg}"),
-                ));
-            } else if regex_pattern.is_none() {
-                regex_pattern = Some(arg.clone());
-            } else {
-                return Err(ApiError::new(
-                    "INVALID_ARGS",
-                    "wait accepts a single regex positional argument",
-                ));
-            }
-            i += 1;
-        }
+        let timeout = parse_duration(&args.timeout)?;
+        let interval = parse_duration(&args.interval)?;
 
-        let regex_pattern = regex_pattern
+        let regex_pattern = args
+            .regex
+            .or(args.regex_positional)
             .ok_or_else(|| ApiError::new("INVALID_ARGS", "wait requires --regex <pattern>"))?;
         let regex = compile_search_regex(&regex_pattern, false, false)?;
 
-        let pane_id =
-            pane_id.ok_or_else(|| ApiError::new("INVALID_ARGS", "wait requires --pane <name>"))?;
+        let pane_id = args
+            .pane
+            .ok_or_else(|| ApiError::new("INVALID_ARGS", "wait requires --pane <name>"))?;
         let pane_id = self.resolve_pane_name(&pane_id)?;
-        self.ensure_token_can_access_pane(token.as_deref(), pane_id, "wait")?;
-        let since_line_count = if let Some(token) = since {
+        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id, "wait")?;
+        let since_line_count = if let Some(token) = args.since {
             Some(self.resolve_since_line_count(&token, pane_id)?)
         } else {
             None
         };
 
-        if let Some(matched_lines) =
-            self.wait_condition_matches(pane_id, &regex, last_n, window, &mode, since_line_count)?
-        {
+        if let Some(matched_lines) = self.wait_condition_matches(
+            pane_id,
+            &regex,
+            args.last,
+            args.window,
+            &args.mode,
+            since_line_count,
+        )? {
             return Ok(CommandOutcome::Immediate {
-                json_only,
-                human: if json_only {
+                json_only: args.json,
+                human: if args.json {
                     None
                 } else {
                     Some("match found".to_string())
@@ -435,13 +291,13 @@ impl QuillPlugin {
                 pipe_id: pipe_id.to_string(),
                 pane_id,
                 regex,
-                last_n,
-                window,
-                mode,
+                last_n: args.last,
+                window: args.window,
+                mode: args.mode,
                 deadline: Instant::now() + timeout,
                 next_poll_at: Instant::now() + interval,
                 interval,
-                json_only,
+                json_only: args.json,
                 since_line_count,
             }),
         );

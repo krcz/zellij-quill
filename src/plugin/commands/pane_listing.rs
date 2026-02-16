@@ -1,62 +1,46 @@
 use super::*;
+use args::parse_args;
+use clap::Parser;
+
+#[derive(Parser)]
+#[clap(no_binary_name = true)]
+struct PanesArgs {
+    #[clap(long)]
+    json: bool,
+    #[clap(long)]
+    focused: bool,
+    #[clap(long)]
+    all: bool,
+    #[clap(long)]
+    tab: Option<String>,
+    #[clap(long = "match-title")]
+    match_title: Option<String>,
+    #[clap(long)]
+    columns: Option<String>,
+}
 
 impl QuillPlugin {
     pub(in crate::plugin) fn cmd_panes(
         &mut self,
-        args: &[String],
+        raw_args: &[String],
     ) -> Result<CommandOutcome, ApiError> {
-        let mut json_only = false;
-        let mut only_focused = false;
-        let mut include_plugin_panes = false;
-        let mut tab_selector = TabSelector::Focused;
-        let mut title_regex: Option<Regex> = None;
-        let mut columns: Option<Vec<String>> = None;
+        let args = parse_args::<PanesArgs>(raw_args)?;
 
-        let mut i = 0;
-        while i < args.len() {
-            let arg = &args[i];
-            if arg == "--json" {
-                json_only = true;
-            } else if arg == "--focused" {
-                only_focused = true;
-            } else if arg == "--all" {
-                include_plugin_panes = true;
-            } else if arg == "--tab" {
-                i += 1;
-                let value = args
-                    .get(i)
-                    .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --tab"))?;
-                tab_selector = parse_tab_selector(value)?;
-            } else if let Some(value) = opt_value(arg, "--tab") {
-                tab_selector = parse_tab_selector(&value)?;
-            } else if arg == "--match-title" {
-                i += 1;
-                let value = args.get(i).ok_or_else(|| {
-                    ApiError::new("INVALID_ARGS", "Missing value for --match-title")
-                })?;
-                title_regex = Some(Regex::new(value).map_err(|e| {
-                    ApiError::new("INVALID_REGEX", format!("Invalid --match-title regex: {e}"))
-                })?);
-            } else if let Some(value) = opt_value(arg, "--match-title") {
-                title_regex = Some(Regex::new(&value).map_err(|e| {
-                    ApiError::new("INVALID_REGEX", format!("Invalid --match-title regex: {e}"))
-                })?);
-            } else if arg == "--columns" {
-                i += 1;
-                let value = args
-                    .get(i)
-                    .ok_or_else(|| ApiError::new("INVALID_ARGS", "Missing value for --columns"))?;
-                columns = Some(parse_columns(value));
-            } else if let Some(value) = opt_value(arg, "--columns") {
-                columns = Some(parse_columns(&value));
-            } else {
-                return Err(ApiError::new(
-                    "INVALID_ARGS",
-                    format!("Unknown flag for panes: {arg}"),
-                ));
-            }
-            i += 1;
-        }
+        let tab_selector = match args.tab {
+            Some(ref s) => s
+                .parse::<TabSelector>()
+                .map_err(|e| ApiError::new("INVALID_ARGS", e))?,
+            None => TabSelector::Focused,
+        };
+
+        let title_regex = match args.match_title {
+            Some(ref pattern) => Some(Regex::new(pattern).map_err(|e| {
+                ApiError::new("INVALID_REGEX", format!("Invalid --match-title regex: {e}"))
+            })?),
+            None => None,
+        };
+
+        let columns = args.columns.as_deref().map(parse_columns);
 
         let manifest = self
             .pane_manifest
@@ -75,10 +59,10 @@ impl QuillPlugin {
                 continue;
             }
             for pane in panes {
-                if only_focused && !(pane.is_focused && !pane.is_plugin) {
+                if args.focused && !(pane.is_focused && !pane.is_plugin) {
                     continue;
                 }
-                if !include_plugin_panes && pane.is_plugin {
+                if !args.all && pane.is_plugin {
                     continue;
                 }
                 if let Some(regex) = &title_regex {
@@ -115,7 +99,7 @@ impl QuillPlugin {
             })
             .collect();
 
-        let human = if json_only {
+        let human = if args.json {
             None
         } else {
             let active_columns = columns.unwrap_or_else(|| {
@@ -140,7 +124,7 @@ impl QuillPlugin {
         };
 
         Ok(CommandOutcome::Immediate {
-            json_only,
+            json_only: args.json,
             human,
             payload: json!({
                 "ok": true,

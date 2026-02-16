@@ -1,16 +1,18 @@
+#![cfg_attr(not(target_arch = "wasm32"), allow(dead_code, unused_imports))]
+
 mod error;
 mod parsing;
 mod plugin;
 mod types;
 mod util;
 
-use types::QuillPlugin;
-use zellij_tile::prelude::*;
 #[cfg(target_arch = "wasm32")]
 use {
     std::cell::RefCell,
     std::collections::BTreeMap,
     std::convert::{TryFrom, TryInto},
+    types::QuillPlugin,
+    zellij_tile::prelude::*,
     zellij_tile::shim::plugin_api::action::ProtobufPluginConfiguration,
     zellij_tile::shim::plugin_api::event::ProtobufEvent,
     zellij_tile::shim::plugin_api::pipe_message::ProtobufPipeMessage,

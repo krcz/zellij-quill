@@ -48,13 +48,6 @@ impl QuillPlugin {
         }
     }
 
-    pub(super) fn pane_permissions_for(&self, token: &str) -> Vec<PaneId> {
-        self.token_pane_permissions
-            .get(token)
-            .cloned()
-            .unwrap_or_default()
-    }
-
     fn next_permission_request_id(&mut self) -> String {
         self.next_permission_request_id += 1;
         format!(

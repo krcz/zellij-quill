@@ -210,9 +210,8 @@ impl QuillPlugin {
     ) -> Result<CommandOutcome, ApiError> {
         if self.permissions_denied {
             return Err(
-                ApiError::new("PERMISSION_STATUS", "Plugin permissions were denied").hint(
-                    "Allow requested plugin permissions in Zellij and reload the plugin.",
-                ),
+                ApiError::new("PERMISSION_STATUS", "Plugin permissions were denied")
+                    .hint("Allow requested plugin permissions in Zellij and reload the plugin."),
             );
         }
 

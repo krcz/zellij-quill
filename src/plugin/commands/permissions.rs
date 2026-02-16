@@ -1,22 +1,21 @@
 use super::*;
+use args::parse_args;
+use clap::Parser;
+
+#[derive(Parser)]
+#[clap(no_binary_name = true)]
+struct PermitArgs {
+    #[clap(long)]
+    json: bool,
+}
 
 impl QuillPlugin {
     pub(in crate::plugin) fn cmd_permit(
         &mut self,
-        args: &[String],
+        raw_args: &[String],
     ) -> Result<CommandOutcome, ApiError> {
-        let mut json_only = false;
-
-        for arg in args {
-            if arg == "--json" {
-                json_only = true;
-            } else {
-                return Err(
-                    ApiError::new("PERMIT_DISABLED", "CLI permission grants are disabled")
-                        .hint("Use the quill permission prompt UI to approve or deny requests."),
-                );
-            }
-        }
+        let args = parse_args::<PermitArgs>(raw_args)?;
+        let json_only = args.json;
 
         let mut pending_requests: Vec<PanePermissionRequest> =
             self.pending_permission_requests.values().cloned().collect();
