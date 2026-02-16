@@ -27,7 +27,6 @@ impl QuillPlugin {
                 json!({
                     "request_id": request.request_id,
                     "token": request.token,
-                    "action": request.action,
                     "pane_id": pane_id_to_string(request.pane_id),
                     "origin_pane_id": request.origin_pane_id.map(pane_id_to_string),
                     "created_at_ms": request.created_at_ms,

@@ -165,42 +165,46 @@ impl QuillPlugin {
         };
 
         self.block_pipe(pipe_id);
-        self.pending_permission_commands.insert(
-            request_id,
-            PendingPermissionCommand {
+        self.pending_permission_commands
+            .entry(request_id)
+            .or_default()
+            .push(PendingPermissionCommand {
                 pipe_id: pipe_id.to_string(),
                 parsed: parsed.clone(),
                 origin_pane_id: self.current_pipe_origin_pane_id,
-            },
-        );
+            });
         true
     }
 
     pub(super) fn continue_pending_permission_command(&mut self, request_id: &str) {
-        let Some(pending) = self.pending_permission_commands.remove(request_id) else {
+        let Some(pending_commands) = self.pending_permission_commands.remove(request_id) else {
             return;
         };
 
         let previous_origin = self.current_pipe_origin_pane_id;
-        self.current_pipe_origin_pane_id = pending.origin_pane_id;
-        self.run_parsed_command(&pending.parsed, Some(&pending.pipe_id), true);
+        for pending in pending_commands {
+            self.current_pipe_origin_pane_id = pending.origin_pane_id;
+            self.run_parsed_command(&pending.parsed, Some(&pending.pipe_id), true);
+        }
         self.current_pipe_origin_pane_id = previous_origin;
     }
 
     pub(super) fn deny_pending_permission_command(&mut self, request_id: &str) {
-        let Some(pending) = self.pending_permission_commands.remove(request_id) else {
+        let Some(pending_commands) = self.pending_permission_commands.remove(request_id) else {
             return;
         };
 
-        self.send_error_with_unblock(
-            Some(&pending.pipe_id),
-            false,
-            ApiError::new(
-                "PERMISSION_DENIED",
-                "Permission request was denied in UI prompt",
-            ),
-            true,
-        );
+        for pending in pending_commands {
+            self.send_error_with_unblock(
+                Some(&pending.pipe_id),
+                false,
+                ApiError::new(
+                    "PERMISSION_DENIED",
+                    "Permission request was denied in UI prompt",
+                ),
+                true,
+            );
+        }
     }
 
     pub(super) fn dispatch_command(

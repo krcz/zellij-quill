@@ -72,14 +72,12 @@ impl QuillPlugin {
         &mut self,
         token: &str,
         pane_id: PaneId,
-        action: &str,
         origin_pane_id: Option<PaneId>,
     ) -> PanePermissionRequest {
         let request = PanePermissionRequest {
             request_id: self.next_permission_request_id(),
             token: token.to_string(),
             pane_id,
-            action: action.to_string(),
             origin_pane_id,
             created_at_ms: unix_time_ms(),
         };
@@ -92,13 +90,10 @@ impl QuillPlugin {
         &self,
         token: &str,
         pane_id: PaneId,
-        action: &str,
     ) -> Option<PanePermissionRequest> {
         self.pending_permission_requests
             .values()
-            .find(|request| {
-                request.token == token && request.pane_id == pane_id && request.action == action
-            })
+            .find(|request| request.token == token && request.pane_id == pane_id)
             .cloned()
     }
 
@@ -109,14 +104,13 @@ impl QuillPlugin {
     }
 
     fn open_permission_prompt(&mut self, request: &PanePermissionRequest) -> bool {
-        let script = r#"printf '\n[quill permission]\nToken: %s\nPane: %s\nAction: %s\n\nAllow this request? [y/N]: ' "$1" "$2" "$3"; read answer; case "$answer" in y|Y|yes|YES) exit 0;; *) exit 1;; esac"#;
+        let script = r#"printf '\n[quill permission]\nToken: %s\nPane: %s\n\nAllow this request? [y/N]: ' "$1" "$2"; read answer; case "$answer" in y|Y|yes|YES) exit 0;; *) exit 1;; esac"#;
         let args = vec![
             "-c".to_string(),
             script.to_string(),
             "quill-approve".to_string(),
             request.token.clone(),
             pane_id_to_string(request.pane_id),
-            request.action.clone(),
         ];
         let command = CommandToRun::new_with_args("sh", args);
 
@@ -148,7 +142,6 @@ impl QuillPlugin {
         .meta(json!({
             "request_id": request.request_id,
             "token": request.token,
-            "action": request.action,
             "pane_id": pane_id_to_string(request.pane_id),
             "origin_pane_id": request.origin_pane_id.map(pane_id_to_string),
             "approval": "ui_prompt",
@@ -206,71 +199,25 @@ impl QuillPlugin {
         &mut self,
         provided_token: Option<&str>,
         pane_id: PaneId,
-        action: &str,
     ) -> Result<Option<String>, ApiError> {
-        if !self.enforce_pane_permissions {
-            return Ok(self.actor_token(provided_token));
-        }
-
-        let token = match self.actor_token(provided_token) {
-            Some(token) => token,
-            None => {
-                let origin_pane_id = self.current_origin_pane();
-                let dialog = format!(
-                    "Action `{action}` requires a token.\nSet {} or pass --token and retry.",
-                    SESSION_TOKEN_ENV_VAR
-                );
-                self.write_permission_dialog(origin_pane_id, &dialog);
-                return Err(ApiError::new(
-                    "UNAUTHORIZED",
-                    "Pane permissions are enabled and require a token",
-                )
-                .hint(format!(
-                    "Provide --token or set {} and retry.",
-                    SESSION_TOKEN_ENV_VAR
-                )));
-            }
+        let Some(token) = self.resolve_actor_token_for_pane_access(provided_token)? else {
+            return Ok(None);
         };
 
-        if self.has_pane_permission(&token, pane_id) {
-            return Ok(Some(token));
-        }
-
-        let request =
-            if let Some(existing) = self.pending_permission_request(&token, pane_id, action) {
-                existing
-            } else {
-                let origin_pane_id = self.current_origin_pane();
-                self.queue_permission_request(&token, pane_id, action, origin_pane_id)
-            };
-
-        if !self.has_prompt_for_request(&request.request_id) {
-            if !self.open_permission_prompt(&request) {
-                self.write_permission_dialog(
-                    request.origin_pane_id,
-                    "Failed to open quill approval prompt pane.",
-                );
-            }
-        }
-
-        let dialog = format!(
-            "Action `{}` requires access to {} for token `{}`.\nApprove in the quill permission prompt.",
-            request.action,
-            pane_id_to_string(request.pane_id),
-            request.token,
-        );
-        self.write_permission_dialog(request.origin_pane_id, &dialog);
-
-        Err(self.permission_required_error(&request))
+        self.ensure_specific_token_can_access_pane(token, pane_id)
+            .map(Some)
     }
 
     pub(super) fn ensure_token_can_create_from_origin(
         &mut self,
         provided_token: Option<&str>,
-        action: &str,
     ) -> Result<Option<String>, ApiError> {
+        let Some(token) = self.resolve_actor_token_for_pane_access(provided_token)? else {
+            return Ok(None);
+        };
+
         if !self.enforce_pane_permissions {
-            return Ok(self.actor_token(provided_token));
+            return Ok(Some(token));
         }
 
         let origin_pane_id = self.current_origin_pane().ok_or_else(|| {
@@ -283,7 +230,88 @@ impl QuillPlugin {
             ))
         })?;
 
-        self.ensure_token_can_access_pane(provided_token, origin_pane_id, action)
+        self.ensure_specific_token_can_access_pane(token, origin_pane_id)
+            .map(Some)
+    }
+
+    fn resolve_actor_token_for_pane_access(
+        &mut self,
+        provided_token: Option<&str>,
+    ) -> Result<Option<String>, ApiError> {
+        self.validate_auth(provided_token)?;
+
+        if !self.enforce_pane_permissions {
+            return Ok(self.actor_token(provided_token));
+        }
+
+        match self.actor_token(provided_token) {
+            Some(token) => Ok(Some(token)),
+            None => {
+                let origin_pane_id = self.current_origin_pane();
+                let dialog = format!(
+                    "Pane access requires a token.\nSet {} or pass --token and retry.",
+                    SESSION_TOKEN_ENV_VAR
+                );
+                self.write_permission_dialog(origin_pane_id, &dialog);
+                Err(ApiError::new(
+                    "UNAUTHORIZED",
+                    "Pane permissions are enabled and require a token",
+                )
+                .hint(format!(
+                    "Provide --token or set {} and retry.",
+                    SESSION_TOKEN_ENV_VAR
+                )))
+            }
+        }
+    }
+
+    fn ensure_specific_token_can_access_pane(
+        &mut self,
+        token: String,
+        pane_id: PaneId,
+    ) -> Result<String, ApiError> {
+        if !self.enforce_pane_permissions {
+            return Ok(token);
+        }
+
+        if self.has_pane_permission(&token, pane_id) {
+            return Ok(token);
+        }
+
+        let request = if let Some(existing) = self.pending_permission_request(&token, pane_id) {
+            existing
+        } else {
+            let origin_pane_id = self.current_origin_pane();
+            self.queue_permission_request(&token, pane_id, origin_pane_id)
+        };
+
+        let prompt_available = self.has_prompt_for_request(&request.request_id)
+            || self.open_permission_prompt(&request);
+        if !prompt_available {
+            self.pending_permission_requests.remove(&request.request_id);
+            self.write_permission_dialog(
+                request.origin_pane_id,
+                &format!(
+                    "Access to {} requested for token `{}`.\nCould not open the quill approval prompt pane.",
+                    pane_id_to_string(request.pane_id),
+                    request.token
+                ),
+            );
+            return Err(ApiError::new(
+                "PERMISSION_UNAVAILABLE",
+                "Unable to open quill approval prompt pane",
+            )
+            .hint("Retry the command or disable pane permissions."));
+        }
+
+        let dialog = format!(
+            "Access to {} requested for token `{}`.\nApprove in the quill permission prompt.",
+            pane_id_to_string(request.pane_id),
+            request.token,
+        );
+        self.write_permission_dialog(request.origin_pane_id, &dialog);
+
+        Err(self.permission_required_error(&request))
     }
 }
 

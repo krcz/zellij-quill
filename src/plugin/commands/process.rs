@@ -118,9 +118,7 @@ impl QuillPlugin {
         let args = parse_args::<SpawnArgs>(raw_args)?;
         let wait_for = parse_duration(&args.wait)?;
 
-        self.validate_auth(args.token.as_deref())?;
-        let actor_token =
-            self.ensure_token_can_create_from_origin(args.token.as_deref(), "spawn")?;
+        let actor_token = self.ensure_token_can_create_from_origin(args.token.as_deref())?;
 
         if matches!(args.kind, SpawnKind::Command) && args.command.is_empty() {
             return Err(ApiError::new(

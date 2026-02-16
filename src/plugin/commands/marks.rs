@@ -44,7 +44,7 @@ impl QuillPlugin {
             .pane
             .ok_or_else(|| ApiError::new("INVALID_ARGS", "mark requires --pane <name>"))?;
         let pane_id = self.resolve_pane_name(&pane_id)?;
-        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id, "mark")?;
+        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id)?;
         let pane_lines = self.read_pane_lines(pane_id, true)?;
         let token = self.next_mark_token();
         let created_at_ms = unix_time_ms();
@@ -89,7 +89,7 @@ impl QuillPlugin {
                     .hint("Create one with `mark --pane ...` and pass it to --since.")
             })?
             .clone();
-        self.ensure_token_can_access_pane(args.auth_token.as_deref(), mark.pane_id, "since")?;
+        self.ensure_token_can_access_pane(args.auth_token.as_deref(), mark.pane_id)?;
 
         let current_line_count = self.read_pane_lines(mark.pane_id, true)?.all.len();
         let truncated = mark.line_count > current_line_count;

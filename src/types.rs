@@ -38,7 +38,7 @@ pub(crate) struct QuillPlugin {
     pub(crate) current_pipe_origin_pane_id: Option<PaneId>,
     pub(crate) permission_prompt_panes: std::collections::HashMap<u32, String>,
     pub(crate) pending_permission_commands:
-        std::collections::HashMap<String, PendingPermissionCommand>,
+        std::collections::HashMap<String, Vec<PendingPermissionCommand>>,
 }
 
 #[derive(Debug)]
@@ -93,7 +93,6 @@ pub(crate) struct PanePermissionRequest {
     pub(crate) request_id: String,
     pub(crate) token: String,
     pub(crate) pane_id: PaneId,
-    pub(crate) action: String,
     pub(crate) origin_pane_id: Option<PaneId>,
     pub(crate) created_at_ms: u128,
 }

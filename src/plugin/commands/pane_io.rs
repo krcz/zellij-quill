@@ -66,13 +66,11 @@ impl QuillPlugin {
     ) -> Result<CommandOutcome, ApiError> {
         let args = parse_args::<SendArgs>(raw_args)?;
 
-        self.validate_auth(args.token.as_deref())?;
-
         let pane_id = args
             .pane
             .ok_or_else(|| ApiError::new("INVALID_ARGS", "send requires --pane <name>"))?;
         let pane_id = self.resolve_pane_name(&pane_id)?;
-        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id, "send")?;
+        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id)?;
 
         let mut bytes_to_write = Vec::new();
         let text = if args.text.is_empty() {
@@ -134,8 +132,6 @@ impl QuillPlugin {
             None => Duration::from_secs(30),
         };
 
-        self.validate_auth(args.token.as_deref())?;
-
         if args.command.is_empty() {
             return Err(ApiError::new(
                 "INVALID_ARGS",
@@ -154,7 +150,7 @@ impl QuillPlugin {
             .pane
             .ok_or_else(|| ApiError::new("INVALID_ARGS", "run requires --pane <name>"))?;
         let pane_id = self.resolve_pane_name(&pane_id)?;
-        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id, "run")?;
+        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id)?;
         let mut command_text = args.command.join(" ");
         if !args.no_enter {
             command_text.push('\n');
@@ -216,13 +212,11 @@ impl QuillPlugin {
     ) -> Result<CommandOutcome, ApiError> {
         let args = parse_args::<InterruptArgs>(raw_args)?;
 
-        self.validate_auth(args.token.as_deref())?;
-
         let pane_id = args
             .pane
             .ok_or_else(|| ApiError::new("INVALID_ARGS", "interrupt requires --pane <name>"))?;
         let pane_id = self.resolve_pane_name(&pane_id)?;
-        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id, "interrupt")?;
+        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id)?;
         if args.sigkill {
             send_sigkill_to_pane_id(pane_id);
         } else {

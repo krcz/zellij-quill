@@ -86,7 +86,7 @@ impl QuillPlugin {
             .pane
             .ok_or_else(|| ApiError::new("INVALID_ARGS", "tail requires --pane <name>"))?;
         let pane_id = self.resolve_pane_name(&pane_id)?;
-        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id, "tail")?;
+        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id)?;
         let pane_lines = self.read_pane_lines(pane_id, strip_ansi)?;
         let since_line_count = if let Some(token) = args.since {
             Some(self.resolve_since_line_count(&token, pane_id)?)
@@ -170,7 +170,7 @@ impl QuillPlugin {
             .pane
             .ok_or_else(|| ApiError::new("INVALID_ARGS", "grep requires --pane <name>"))?;
         let pane_id = self.resolve_pane_name(&pane_id)?;
-        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id, "grep")?;
+        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id)?;
 
         let pane_lines = self.read_pane_lines(pane_id, true)?;
         let since_line_count = if let Some(token) = args.since {
@@ -245,7 +245,7 @@ impl QuillPlugin {
             .pane
             .ok_or_else(|| ApiError::new("INVALID_ARGS", "wait requires --pane <name>"))?;
         let pane_id = self.resolve_pane_name(&pane_id)?;
-        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id, "wait")?;
+        self.ensure_token_can_access_pane(args.token.as_deref(), pane_id)?;
         let since_line_count = if let Some(token) = args.since {
             Some(self.resolve_since_line_count(&token, pane_id)?)
         } else {
