@@ -52,7 +52,7 @@ Add the plugin to your Zellij config (usually `~/.config/zellij/config.kdl`) so 
 
 ```kdl
 load_plugins {
-  "https://github.com/krcz/zellij-quill/releases/download/v0.0.1/zellij_quill.wasm" {
+  "https://github.com/krcz/zellij-quill/releases/download/v0.0.2/zellij_quill.wasm" {
     require_token false
     enable_pane_permissions true
     // token "your-static-token" // optional
